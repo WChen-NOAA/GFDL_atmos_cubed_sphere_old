@@ -278,6 +278,8 @@ contains
       real, dimension(bd%is:bd%ie):: cvm
 #ifdef MULTI_GASES
       real, allocatable :: kapad(:,:,:)
+      real, allocatable :: wam_kappain(:,:,:)  
+      real              :: pcell, pkzcell, scal_kapcor                         
 #endif
       real, save :: time_offset = -1.00
       real t(bd%isd:bd%ied,bd%jsd:bd%jed)
@@ -337,6 +339,8 @@ contains
 #ifdef MULTI_GASES
       allocate ( kapad(isd:ied, jsd:jed, npz) )
       call init_ijk_mem(isd,ied, jsd,jed, npz, kapad, kappa)
+      allocate ( wam_kappain(isd:ied, jsd:jed, npz) ) 
+      call init_ijk_mem(isd,ied, jsd,jed, npz, wam_kappain, kappa)        
 #endif
 
       if (flagstruct%molecular_diffusion ) then
@@ -686,7 +690,19 @@ contains
                     gridstruct, flagstruct, neststruct, idiag, bd, &
                     domain, n_map==1, i_pack, last_step, diss_est,time_total)
                                            call timing_off('DYN_CORE')
-
+#ifdef MULTI_GASES
+!$OMP parallel do default(none) shared(is,ie,js,je,npz,wam_kappain, kapad, cappa, q)     
+         do k=1,npz
+          do j=js,je
+             do i=is,ie
+	            ! wam_kappain(i,j,k) =cappa(i,j,k)
+              wam_kappain(i,j,k) = kapad(i,j,k)
+            enddo
+         enddo
+      enddo
+!      if( is_master() )	write(6,*) 'fv_dyn wam_kappain ', maxval(wam_kappain(is:ie, js:je,1:npz)),  &
+!	                                  minval(wam_kappain(is:ie, js:je,1:npz))   
+#endif
 
 #ifdef SW_DYNAMICS
 !!$OMP parallel do default(none) shared(is,ie,js,je,ps,delp,agrav)
@@ -720,6 +736,36 @@ contains
        endif
                                              call timing_off('tracer_2d')
 
+#ifdef MULTI_GASES
+!
+! fv3wam kap_cor of pt before remapping
+!					     					     
+!$OMP parallel do default(none) shared(is,ie,js,je, npz, scal_kapcor,pe, peln, wam_kappain, q, pt, kappa, kapad)	
+         do k=1,npz
+          do j=js,je
+             do i=is,ie   
+	              kapad(i,j,k)= kappa * (virqd(q(i,j,k,:))/vicpqd(q(i,j,k,:)))
+       
+!	     scal_kapcor=.5*( log(pe(i,k,j))+log(pe(i,k+1,j)) ) *(-wam_kappain(i,j,k)+q(i,j,k,ind_trkap))	     
+	     scal_kapcor=.5*( peln(i,k,j)+ peln(i,k+1,j) ) *( kapad(i,j,k)-wam_kappain(i,j,k)) 
+	     
+	     pt(i,j,k) = pt(i,j,k) * (1.0 - scal_kapcor)
+!	     	     	     
+!	     kap_cor(i,j,k) =scal_kapcor    
+!			      
+             enddo
+          enddo
+         enddo
+	 
+!	  if( is_master() ) then 
+!	   write(6,*) ' fv_dyn_kap_cor ', maxval(kap_cor(is:ie, js:je,1:npz)), &
+!	                                minval(kap_cor(is:ie, js:je,1:npz))
+!	   write(6,*) 'fv_dyn kap_cor-pt2 ', maxval(pt(is:ie, js:je,1:npz)),  minval(pt(is:ie, js:je,1:npz))
+!	   write(6,*) 'fv_dyn kap_cor-pe2 ', maxval(pe(is:ie, 1:npz, js:je)),  minval(pe(is:ie, 1:npz+1, js:je))		
+!       endif	
+     
+#endif
+     
 #ifdef FILL2D
      if ( flagstruct%hord_tr<8 .and. flagstruct%moist_phys ) then
                                                   call timing_on('Fill2D')
@@ -1030,6 +1076,9 @@ contains
 
 #ifdef MULTI_GASES
   deallocate(kapad)
+!  deallocate(kap_cor)
+  deallocate(wam_kappain)  
+    
 #endif
 
   if ( flagstruct%fv_debug ) then
