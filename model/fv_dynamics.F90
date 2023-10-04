@@ -351,7 +351,7 @@ contains
       call init_ijk_mem(isd,ied, jsd,jed, npz, wam_kappain, kappa)    
       ind_trkap = get_tracer_index (MODEL_ATMOS, 'tr_kappa') 
       
-!        if( is_master() )  write(6,*) ' tr_kappa index ', ind_trkap                        
+!      if( is_master() )  write(6,*) ' tr_kappa index ', ind_trkap                        
 !      allocate ( kap_cor(isd:ied, jsd:jed, npz) ) 
 !      allocate ( mol_kt(isd:ied, jsd:jed, npz+1) )    
 !      allocate ( mol_vu(isd:ied, jsd:jed, npz+1) )               
@@ -709,6 +709,12 @@ contains
 #endif
 #ifdef MULTI_GASES
      call complete_group_halo_update(i_pack(13), domain)
+if (is_master()) then
+           write(6,*) 'pt_exp4_isd',maxval(pt(isd,:,1:npz)),minval(pt(isd,:,1:npz))
+           write(6,*) 'pt_exp4_ied',maxval(pt(ied,:,1:npz)),minval(pt(ied,:,1:npz))
+           write(6,*) 'pt_exp4_jsd',maxval(pt(:,jsd,1:npz)),minval(pt(:,jsd,1:npz))
+           write(6,*) 'pt_exp4_jed',maxval(pt(:,jed,1:npz)),minval(pt(:,jed,1:npz))
+endif
 #endif
 
                                            call timing_on('DYN_CORE')
@@ -724,6 +730,7 @@ contains
                     domain, n_map==1, i_pack, last_step, diss_est,time_total)
                                            call timing_off('DYN_CORE')
 #ifdef MULTI_GASES
+ if( is_master() )  write(6,*) ' tr_kappa index2 ', ind_trkap
      if ( ind_trkap > 1 ) then
 !$OMP parallel do default(none) shared(is,ie,js,je,npz,ind_trkap,wam_kappain, kapad, cappa, q)     
          do k=1,npz
@@ -734,6 +741,7 @@ contains
             enddo
          enddo
       enddo
+        if( is_master() )  write(6,*) ' tr_kappa index3 ', ind_trkap
 !      if( is_master() )	write(6,*) 'fv_dyn wam_kappain ', maxval(wam_kappain(is:ie, js:je,1:npz)),  &
 !	                                  minval(wam_kappain(is:ie, js:je,1:npz))   
      endif  
@@ -772,6 +780,7 @@ contains
                                              call timing_off('tracer_2d')
 
 #ifdef MULTI_GASES
+ if( is_master() )  write(6,*) ' tr_kappa index4 ', ind_trkap
 !
 ! fv3wam kap_cor of pt before remapping
 !					     					     
@@ -791,12 +800,17 @@ contains
              enddo
           enddo
          enddo
+      if( is_master() )  write(6,*) ' tr_kappa index4 ', ind_trkap
  
 !	  if( is_master() ) then 
 !	   write(6,*) ' fv_dyn_kap_cor ', maxval(kap_cor(is:ie, js:je,1:npz)), &
 !	                                minval(kap_cor(is:ie, js:je,1:npz))
-!	   write(6,*) 'fv_dyn kap_cor-pt2 ', maxval(pt(is:ie, js:je,1:npz)),  minval(pt(is:ie, js:je,1:npz))
-!	   write(6,*) 'fv_dyn kap_cor-pe2 ', maxval(pe(is:ie, 1:npz, js:je)),  minval(pe(is:ie, 1:npz+1, js:je))		
+	   write(6,*) 'fv_dyn kap_cor-pt2 ', maxval(pt(is:ie, js:je,1:npz)),  minval(pt(is:ie, js:je,1:npz))
+!	   write(6,*) 'fv_dyn kap_cor-pe2 ', maxval(pe(is:ie, 1:npz, js:je)),  minval(pe(is:ie, 1:npz+1, js:je))
+           write(6,*) 'pt_exp5_isd', maxval(pt(isd,:,1:npz)),minval(pt(isd,:,1:npz))
+           write(6,*) 'pt_exp5_ied', maxval(pt(ied,:,1:npz)),minval(pt(ied,:,1:npz))
+           write(6,*) 'pt_exp5_jsd', maxval(pt(:,jsd,1:npz)),minval(pt(:,jsd,1:npz))
+           write(6,*) 'pt_exp5_jed', maxval(pt(:,jed,1:npz)),minval(pt(:,jed,1:npz))
 !       endif	
      
      endif
@@ -846,9 +860,14 @@ contains
 #ifdef AVEC_TIMERS
                                                   call avec_timer_start(6)
 #endif
-!         if( is_master() ) then 
+         if( is_master() ) then 
 !	  print *, 'remap ', last_step, mdt, bdt
-!	 endif 
+           write(6,*) 'pt_exp5_isd', maxval(pt(isd,:,1:npz)),minval(pt(isd,:,1:npz))
+           write(6,*) 'pt_exp5_ied', maxval(pt(ied,:,1:npz)),minval(pt(ied,:,1:npz))
+           write(6,*) 'pt_exp5_jsd', maxval(pt(:,jsd,1:npz)),minval(pt(:,jsd,1:npz))
+           write(6,*) 'pt_exp5_jed', maxval(pt(:,jed,1:npz)),minval(pt(:,jed,1:npz))
+
+	 endif 
          call Lagrangian_to_Eulerian(last_step, consv_te, ps, pe, delp,          &
                      pkz, pk, mdt, bdt, npx, npy, npz, is,ie,js,je, isd,ied,jsd,jed,       &
                      nr, nwat, sphum, q_con, u,  v, w, delz, pt, q, phis,    &
